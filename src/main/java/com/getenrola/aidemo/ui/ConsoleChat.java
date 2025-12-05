@@ -2,11 +2,12 @@ package com.getenrola.aidemo.ui;
 
 import com.getenrola.aidemo.agent.PenSalesOpenAiAgent;
 import com.getenrola.aidemo.model.AgentReply;
-import com.getenrola.aidemo.model.AgentRequest;
-import com.openai.models.ChatModel;
+import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 
 @Component
@@ -22,9 +23,8 @@ public class ConsoleChat implements CommandLineRunner {
     public void run(String... args) {
         System.out.println("Pen Sales Agent (type 'exit' to quit)\n");
 
-        String previousResponseId = null;
-        final String model = ChatModel.GPT_3_5_TURBO.asString();
-
+        List<OpenAiApi.ChatCompletionMessage> history = new ArrayList<>();
+        
         try (Scanner scanner = new Scanner(System.in)) {
             while (true) {
                 System.out.print("You: ");
@@ -33,10 +33,19 @@ public class ConsoleChat implements CommandLineRunner {
                 if (line.isEmpty()) continue;
                 if (line.equalsIgnoreCase("exit") || line.equalsIgnoreCase("quit")) break;
 
-                AgentReply reply = penSalesOpenAiAgent.execute(new AgentRequest(line, previousResponseId, model));
-                previousResponseId = reply.responseId();
-
+                AgentReply reply = penSalesOpenAiAgent.execute(history, line);
                 System.out.println("Agent: " + reply.text() + "\n");
+                // append user + assistant messages to history for next turn
+                history.add(new OpenAiApi.ChatCompletionMessage(
+                        line,
+                        OpenAiApi.ChatCompletionMessage.Role.USER
+                ));
+
+                history.add(new OpenAiApi.ChatCompletionMessage(
+                        reply.text(),
+                        OpenAiApi.ChatCompletionMessage.Role.ASSISTANT
+                ));
+
             }
         }
 
