@@ -34,7 +34,9 @@ public class ConsoleChat implements CommandLineRunner {
                 if (line.equalsIgnoreCase("exit") || line.equalsIgnoreCase("quit")) break;
 
                 AgentReply reply = penSalesOpenAiAgent.execute(history, line);
-                System.out.println("Agent: " + reply.text() + "\n");
+                System.out.println("Agent: " + reply.text());
+                System.out.println("  [stage=" + reply.salesStage() + ", interest=" + reply.leadInterest() + "]\n");
+
                 // append user + assistant messages to history for next turn
                 history.add(new OpenAiApi.ChatCompletionMessage(
                         line,

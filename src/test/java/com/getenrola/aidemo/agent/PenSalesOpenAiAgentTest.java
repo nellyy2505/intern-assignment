@@ -28,6 +28,8 @@ class PenSalesOpenAiAgentTest {
         AgentReply reply1 = penSalesOpenAiAgent.execute(history, user1);
         System.out.println("Agent: " + reply1.text());
         assertThat(reply1.text()).isNotBlank();
+        assertThat(reply1.salesStage()).isNotBlank();
+        assertThat(reply1.leadInterest()).isNotBlank();
 
         history.add(new OpenAiApi.ChatCompletionMessage(user1, OpenAiApi.ChatCompletionMessage.Role.USER));
         history.add(new OpenAiApi.ChatCompletionMessage(reply1.text(), OpenAiApi.ChatCompletionMessage.Role.ASSISTANT));
@@ -38,6 +40,8 @@ class PenSalesOpenAiAgentTest {
         AgentReply reply2 = penSalesOpenAiAgent.execute(history, user2);
         System.out.println("Agent: " + reply2.text());
         assertThat(reply2.text()).isNotBlank();
+        assertThat(reply2.salesStage()).isNotBlank();
+        assertThat(reply2.leadInterest()).isNotBlank();
 
         history.add(new OpenAiApi.ChatCompletionMessage(user2, OpenAiApi.ChatCompletionMessage.Role.USER));
         history.add(new OpenAiApi.ChatCompletionMessage(reply2.text(), OpenAiApi.ChatCompletionMessage.Role.ASSISTANT));
@@ -48,6 +52,8 @@ class PenSalesOpenAiAgentTest {
         AgentReply reply3 = penSalesOpenAiAgent.execute(history, user3);
         System.out.println("Agent: " + reply3.text());
         assertThat(reply3.text()).isNotBlank();
+        assertThat(reply3.salesStage()).isNotBlank();
+        assertThat(reply3.leadInterest()).isNotBlank();
 
         history.add(new OpenAiApi.ChatCompletionMessage(user3, OpenAiApi.ChatCompletionMessage.Role.USER));
         history.add(new OpenAiApi.ChatCompletionMessage(reply3.text(), OpenAiApi.ChatCompletionMessage.Role.ASSISTANT));
@@ -58,5 +64,7 @@ class PenSalesOpenAiAgentTest {
         AgentReply reply4 = penSalesOpenAiAgent.execute(history, user4);
         System.out.println("Agent: " + reply4.text());
         assertThat(reply4.text()).isNotBlank();
+        assertThat(reply4.salesStage()).isNotBlank();
+        assertThat(reply4.leadInterest()).isNotBlank();
     }
 }
