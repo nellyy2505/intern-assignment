@@ -2,6 +2,7 @@ package com.getenrola.aidemo.ui;
 
 import com.getenrola.aidemo.agent.PenSalesOpenAiAgent;
 import com.getenrola.aidemo.model.AgentReply;
+import com.getenrola.aidemo.model.AgentRequest;
 import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
@@ -33,7 +34,9 @@ public class ConsoleChat implements CommandLineRunner {
                 if (line.isEmpty()) continue;
                 if (line.equalsIgnoreCase("exit") || line.equalsIgnoreCase("quit")) break;
 
-                AgentReply reply = penSalesOpenAiAgent.execute(history, line);
+                AgentReply reply = penSalesOpenAiAgent.execute(
+                        new AgentRequest(line, null, null)
+                );
                 System.out.println("Agent: " + reply.text());
                 System.out.println("  [stage=" + reply.salesStage() + ", interest=" + reply.leadInterest() + "]\n");
 

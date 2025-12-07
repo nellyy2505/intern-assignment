@@ -1,22 +1,21 @@
 package com.getenrola.aidemo.agent;
 
 import com.getenrola.aidemo.model.AgentReply;
-import org.springframework.ai.openai.api.OpenAiApi;
+import com.getenrola.aidemo.model.AgentRequest;
+
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import com.getenrola.aidemo.model.SalesAgentOutput;
-import org.springframework.ai.converter.BeanOutputConverter;
 
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.ai.vectorstore.VectorStore;
 
 @Component
 public class PenSalesOpenAiAgent {
-
-    private final OpenAiApi openAiApi;
-
-    private static final String MODEL_NAME = "gpt-4o-mini"; // or any chat completion model
 
     private static final String SYSTEM_PROMPT = """
     You are an SMS-style sales agent for a company that sells a single, everyday smooth-writing pen.
@@ -73,7 +72,7 @@ public class PenSalesOpenAiAgent {
     - Example: “How does that sound?” or “Does that seem like what you’re looking for?”
 
     4) COMMITMENT  (salesStage = "COMMITMENT")
-    - If they seem positive, move gently toward a decision.
+    - If they seem positive (e.g lovely, perfect, sounds good), move gently toward a decision.
     - Example: “Would you like me to send you a link to grab one?”
 
     5) ACTION  (salesStage = "ACTION")
@@ -163,64 +162,53 @@ public class PenSalesOpenAiAgent {
     - Use ONLY the allowed values for salesStage and leadInterest.
     """;
 
-
+    // Structured output converter: JSON <-> SalesAgentOutput
     private final BeanOutputConverter<SalesAgentOutput> outputConverter =
             new BeanOutputConverter<>(SalesAgentOutput.class);
 
-    public PenSalesOpenAiAgent(OpenAiApi openAiApi) {
-        this.openAiApi = openAiApi;
+    private final ChatClient chatClient;
+
+    public PenSalesOpenAiAgent(ChatClient.Builder builder,
+                               VectorStore vectorStore,
+                               ChatMemory chatMemory) {
+
+        this.chatClient = builder
+                .defaultSystem(SYSTEM_PROMPT)
+                .defaultAdvisors(
+                        // Conversation memory
+                        MessageChatMemoryAdvisor.builder(chatMemory).build(),
+                        // RAG over your pen_kb.txt VectorStore
+                        QuestionAnswerAdvisor.builder(vectorStore).build()
+                )
+                .build();
     }
 
-    /**
-     * @param history  previous chat messages (user + assistant), as ChatCompletionMessages
-     * @param userText current user input
-     */
-    public AgentReply execute(List<OpenAiApi.ChatCompletionMessage> history, String userText) {
+    public AgentReply execute(AgentRequest agentRequest) {
 
-        List<OpenAiApi.ChatCompletionMessage> messages = new ArrayList<>();
+        String userText = agentRequest.userText();
 
-        // System message first
-        messages.add(new OpenAiApi.ChatCompletionMessage(
-                SYSTEM_PROMPT,
-                OpenAiApi.ChatCompletionMessage.Role.SYSTEM
-        ));
-
-        // Previous turns
-        messages.addAll(history);
-
-        // Get format instructions for structured output
+        // 1) structured-output format instructions for JSON schema
         String format = outputConverter.getFormat();
-        // Append format instructions ONLY to the current user turn
-        String formattedUserText = userText + "\n\n" + format;
+        String userWithFormat = userText + "\n\n" + format;
 
-        // Current user message
-        messages.add(new OpenAiApi.ChatCompletionMessage(
-                formattedUserText,
-                OpenAiApi.ChatCompletionMessage.Role.USER
-        ));
+        // For now, one hard-coded conversation id for console/tests
+        String conversationId = "console-pen-sales";
 
-        // Build ChatCompletionRequest
-        OpenAiApi.ChatCompletionRequest request =
-                new OpenAiApi.ChatCompletionRequest(messages, MODEL_NAME, 0.6);
+        // 2) call ChatClient (memory + RAG + system prompt are applied)
+        String raw = chatClient
+                .prompt()
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
+                .user(userWithFormat)
+                .call()
+                .content();
 
-        var responseEntity = openAiApi.chatCompletionEntity(request);
-        var completion = responseEntity.getBody();
+        // 3) parse JSON → SalesAgentOutput
+        SalesAgentOutput structured = outputConverter.convert(raw);
 
-        if (completion == null || completion.choices().isEmpty()) {
-            return new AgentReply("Sorry, I couldn't think of a response just now.", null, "UNKNOWN", "UNKNOWN");
-        }
-
-        var firstChoice = completion.choices().get(0);
-        var assistantMessage = firstChoice.message();
-
-        // response content is always a String according to ChatCompletionMessage docs
-        String rawText = (String) assistantMessage.rawContent();
-
-        // Convert to SalesAgentOutput
-        SalesAgentOutput structured = outputConverter.convert(rawText);
+        // 4) map to AgentReply
         return new AgentReply(
                 structured.replyText(),
-                completion.id(),
+                null, // no response id used
                 structured.salesStage(),
                 structured.leadInterest()
         );
