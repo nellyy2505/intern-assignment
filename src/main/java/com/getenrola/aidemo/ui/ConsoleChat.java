@@ -5,6 +5,7 @@ import com.getenrola.aidemo.model.AgentReply;
 import com.getenrola.aidemo.model.AgentRequest;
 import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -12,6 +13,7 @@ import java.util.List;
 import java.util.Scanner;
 
 @Component
+@Profile("!test")
 public class ConsoleChat implements CommandLineRunner {
 
     private final PenSalesOpenAiAgent penSalesOpenAiAgent;

@@ -171,6 +171,12 @@ public class PenSalesOpenAiAgent {
     public PenSalesOpenAiAgent(ChatClient.Builder builder,
                                VectorStore vectorStore,
                                ChatMemory chatMemory) {
+        if(chatMemory == null) {
+            throw new IllegalStateException("No ChatMemory bean available – check your Spring AI config.");
+        }
+        if(vectorStore == null) {
+            throw new IllegalStateException("No VectorStore bean available – check your Spring AI RAG config.");
+        }
 
         this.chatClient = builder
                 .defaultSystem(SYSTEM_PROMPT)
@@ -203,6 +209,9 @@ public class PenSalesOpenAiAgent {
                 .content();
 
         // 3) parse JSON → SalesAgentOutput
+        if(raw == null || raw.isBlank()) {
+            throw new IllegalStateException("Received empty response from ChatClient");
+        }
         SalesAgentOutput structured = outputConverter.convert(raw);
 
         // 4) map to AgentReply
