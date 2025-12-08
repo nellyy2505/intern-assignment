@@ -1,135 +1,240 @@
-# 🖊️ AI Demo Assignment — “Sell a Pen”
+# 🖋️ **Pen Sales AI Agent — LLM-Orchestrated Sales Workflow**
 
-## Overview
+## 🚀 Overview
 
-This project is a short technical assignment designed to test your ability to **design, build, and evaluate an AI agent** using the OpenAI API and Java (Spring Boot).  
-The goal is to implement a simple **AI Sales Agent** that can hold an SMS-style conversation with a potential customer and “sell a pen.”
-
-The project includes a minimal starter setup with a working agent and console interface.  
-You are free to modify, extend, or refactor as you like.
+This project implements an **LLM-powered sales agent** designed to sell pens using a structured sales flow, behavioral constraints, and a fully automated evaluation pipeline.
+The goal is not just to “chat,” but to produce **consistent, sales-appropriate, state-machine-valid responses** in a multi-turn conversation.
 
 ---
 
-## 🎯 Your Task
+# ✅ **What I Built**
 
-Build and improve an **AI Agent** that sells a pen.
+## 1. **Prompt Engineering: Meta-Prompting + Few-Shot + RAG-Fusion**
 
-### Minimum requirements
-- **Engineer and implement a prompt** that follows the sales process described below.
-- **Implement a basic test or evaluation** to measure how well your agent performs with different conversation inputs.
+To stabilize the agent’s behaviour, I used a layered prompting strategy:
 
-### Extra-credit ideas (optional)
-If you’re feeling ambitious, consider adding or writing a plan for:
-- ✅ **Structured output** — e.g. text output + lead interest classification + sales stage.
-- ✅ **A lightweight eval framework** — test different prompts, models, or temperatures, or use AI to score outputs.
-- ✅ **Tool/function use** — call a local function for product details.
-- ✅ **Spring AI integration** — refactor to use [Spring AI](https://spring.io/projects/spring-ai).
-- ✅ **Conversation Memory** — is there a different way to manage conversation memory? What are the advantages/disadvantages of the different approaches?
-- ✅ **Few-Shot** — can few-shot prompting be implemented and how does it improve performance?
+### **Meta-Prompting**
 
-You don’t have to do any of these, but they’ll help us see how you think about applied AI.
+A high-level instruction block that defines:
+
+* the sales persona
+* behavioural constraints
+* the funnel stages
+* strict rules for redirection, objection handling, pricing, and closing
+
+This ensures the model acts like a **sales agent**, not a casual chatbot.
+
+### **Few-Shot Examples**
+
+Added curated examples for:
+
+* discovery questions
+* objection handling
+* off-topic redirection
+* closing behaviour
+
+Few-shot grounding significantly reduces drift and teaches the model consistent patterns.
+
+### **RAG-Fusion** (Retriever-Augmented Generation Fusion)
+
+Although product knowledge is small (pens), the RAG layer:
+
+* injects domain facts (price, features, refillability, premium options)
+* stabilizes answer quality
+* ensures factual consistency
+
+RAG-Fusion also helps keep responses *on brand* and reduces hallucination risk.
+
+Combined, these three techniques dramatically improved:
+
+* persona consistency
+* sales-flow appropriateness
+* redirection behaviour
+* factual correctness
 
 ---
 
-## 🧠 The Scenario
+## 2. **Structured Output (JSON Format)**
 
-Your AI agent is a **sales representative** for a company that sells pens.  
-It’s chatting with a **lead** (the potential buyer) via SMS-style messages — so keep messages short and natural.
+The agent returns structured JSON on every turn, containing:
 
-The goal is to follow a realistic **five-step sales process:**
-
-1. **Discovery** – Ask questions to understand the lead’s motivations.
-2. **Presentation** – Link product features to what matters to the lead.
-3. **Temperature Check** – Gauge the lead’s interest; invite questions.
-4. **Commitment** – Move toward a purchase decision.
-5. **Action** – Close the sale with a clear next step.
-
-### Example conversation
-
+```json
+{
+  "text": "...",
+  "salesStage": "DISCOVERY | PRESENTATION | TEMPERATURE_CHECK | COMMITMENT | ACTION",
+  "leadInterest": "COLD | CURIOUS | INTERESTED | UNSURE | READY_TO_BUY"
+}
 ```
-User: Hi
-Agent: Hey there! I hear you're looking for a new pen. What do you usually use a pen for?
-User: I want something nice for signing contracts.
-Agent: Got it. You need a pen that feels great and looks impressive. Our Signature Black Gel Pen fits that perfectly — smooth ink, classy design. How does that sound?
-User: Sounds good.
-Agent: Excellent. It sounds like you are pretty keen on our pen. Is there anything else you'd like to know about it?
-User: No.
-Agent: Awesome. Would you like me to send you a link to grab one?
-User: Sure.
-Agent: Great! Here’s your link: https://bit.ly/fakepen. It’s valid for 4 hours. Let me know if you have any questions.
+
+This design:
+
+* enables **state-machine validation**
+* allows downstream automation to interpret intent
+* makes evaluation deterministic
+* prevents the LLM from drifting into unstructured chit-chat
+
+---
+
+## 3. **Refactor to Spring AI (Aligned with Spring AI Documentation)**
+
+The application was rebuilt using **Spring AI** patterns and abstractions:
+
+* `ChatClient` for prompt building
+* declarative system/user messages
+* JSON deserialization helpers
+* lower temperature + safety prompts
+
+I followed the official Spring AI recommended architecture, including:
+
+* builder patterns
+* LLM-inference separation
+* environment-based configuration
+
+This refactor simplifies reasoning, ensures future extensibility, and keeps the agent **aligned with modern Spring AI best practices**.
+
+---
+
+## 4. **Evaluation Pipeline (LLM-as-a-Judge)**
+
+The default Spring RelevancyEvaluator was insufficient (semantic similarity only).
+Therefore I implemented **PenSalesCustomEvaluator**, a task-aware black-box evaluation module.
+
+### **The Evaluator Scores Each Turn on:**
+
+* **On-topic score (0–3):**
+  Whether the agent stays anchored to pen sales even during off-topic user input.
+
+* **Persona score (0–3):**
+  Whether the agent behaves like a professional sales assistant (not therapist, friend, etc.)
+
+* **Task appropriateness (0/1):**
+  Whether the reply matches the expected behaviour for the user intent type:
+
+  * greeting → discovery
+  * pricing → provide value/price
+  * objection → value framing
+  * off-topic → redirection
+  * buying signal → move toward closing
+
+* **Final pass/fail decision**
+
+### **Why LLM-as-a-Judge?**
+
+Because conventional unit tests cannot evaluate:
+
+* tone
+* persona consistency
+* conversation flow
+* redirection accuracy
+* value framing
+
+Using an LLM judge allows evaluation of **intent-level correctness**, not just string comparison.
+
+### **Test Suite Design**
+
+Two test layers:
+
+#### **A. Behaviour Tests (`PenSalesOpenAiAgentTest`)**
+
+Per-turn strict validation:
+
+* structured JSON output
+* correct funnel stage
+* evaluator pass/fail
+
+#### **B. Metrics Test (`PenSalesAgentMetricsTest`)**
+
+Runs multiple conversations and computes:
+
+* avg. on-topic score
+* avg. persona score
+* task-appropriateness rate
+* overall pass rate
+
+
+# 🧠 Conversation Memory
+
+The agent uses **Spring AI’s `ChatMemory`** to keep track of previous turns so it can follow a coherent sales flow. Memory is enabled through the `MessageChatMemoryAdvisor`, which is added during agent construction:
+
+```java
+MessageChatMemoryAdvisor.builder(chatMemory).build()
 ```
 
-Objection handling is an important part of the sales process — it’s how the agent helps the lead move past uncertainty without being pushy.
+All turns share a fixed conversation ID:
 
-Objects are best handled with the following process:
+```java
+param(ChatMemory.CONVERSATION_ID, "console-pen-sales")
+```
 
-* Acknowledge the concern – show understanding (“Totally fair,” “I get that,” “That’s a good question”).
+This tells Spring AI to store and replay the full conversation history automatically.
+The agent never manually appends old messages—Spring AI injects them into every model call.
 
-* Reframe or clarify – address the reason behind the objection (“The price is higher because it’s refillable and lasts years.”).
+**Why it matters:**
+Memory allows the agent to remember what the user said earlier, maintain the correct sales stage, track interest level, and respond consistently instead of starting fresh each turn.
 
-* Reconfirm value – link back to what the user said matters most to them (“You mentioned you want something that feels professional — this one’s designed for exactly that.”).
 
-* Check readiness – lightly test if the objection is resolved (“Does that sound more reasonable now?”).
+# ▶️ **How to Run**
 
-* Transition smoothly – move back to the sales flow or closing step (“If it feels like the right fit, I can send you the link.”).
+### **1. Requirements**
 
----
+* Java 17+
+* Maven 3+
+* OpenAI or compatible API key (Ollama, LM Studio, Claude, etc.)
 
-## 💻 Tech Setup
-
-This project is built with **Java + Spring Boot** and uses the [OpenAI Java SDK](https://github.com/openai/openai-java).
-
-### Prerequisites
-- A **GitHub account**
-- **Java IDE** (we recommend IntelliJ IDEA)
-- **OpenAI API key** (you’ll be given one, budgeted at ~$20 USD for this project)
-
----
-
-## ▶️ How to Run
+### **2. Set your API key**
 
 ```bash
-export OPENAI_API_KEY=<<YOUR_OPENAI_API_KEY>>
-./mvnw spring-boot:run
+export OPENAI_API_KEY=your-key
 ```
 
-This starts the console app. You can then chat directly with your AI agent.
 
-To run the included test:
+### **3. Run the application**
 
 ```bash
-export OPENAI_API_KEY=<<YOUR_OPENAI_API_KEY>>
+./mvnw spring-boot:run 
+```
+
+### **4. Run tests**
+
+Only behaviour tests:
+
+```bash
 ./mvnw -Dtest=PenSalesOpenAiAgentTest test
 ```
 
-If you are running using IntelliJ (not the command line), then you'll want to add that OPENAI_API_KEY as an environment variable in your run configuration.
+Metrics / evaluation suite:
+
+```bash
+./mvnw -Dtest=PenSalesAgentMetricsTest test
+```
 
 ---
 
-## 🧩 Project Structure
+# 📁 **Project Structure (Relevant Sections)**
 
-| File                           | Description                                                                                     |
-|--------------------------------|-------------------------------------------------------------------------------------------------|
-| `PenSalesOpenAiAgent.java`     | Core logic for your AI agent. This is where you’ll spend most of your time.                     |
-| `PenSalesOpenAiAgentTest.java` | A simple “eval” test. Extend this to test multiple prompts, models, or outcomes.                |
-| `ConsoleChat.java`             | Lets you interact with the agent from the command line. You can leave this as-is or improve it. |
+```
+src/
+  main/
+    java/com/getenrola/aidemo/
+      agent/
+        PenSalesOpenAiAgent.java
+      evaluation/
+        PenSalesCustomEvaluator.java
+        EvaluationResult.java
 
----
-
-## 🚀 What to Submit
-
-1. Push your completed project to **your own public GitHub repo**.
-2. Re-write this README to describe:
-    - What you built
-    - Why you made your design choices
-    - How to run and test your agent
-    - Anything else you think we should know
-3. Email us with a link to your repo.
+  test/
+    java/com/getenrola/aidemo/agent/
+      PenSalesOpenAiAgentTest.java
+      PenSalesAgentMetricsTest.java
+```
 
 ---
 
-## 💡 Tips
+# 📝 Notes
 
-- Be creative — the task is small, but we’re looking for **clear thinking and applied AI ability**, not fancy frameworks.
-- Use AI tools to help you write your code if you want (we do that too!).
-- If you add structured output, evals, or tool use — keep it simple and explain your reasoning clearly.
+* Evaluation is **task-aware**, not semantic-similarity-based.
+* The agent uses **structured prompting**, **few-shot**, **meta prompting**, and **RAG-fusion**.
+* All tests use an **LLM-as-a-judge**, but with a deterministic temperature setting.
+* This architecture can generalize to any product sales agent or guided workflow assistant.
+
+
