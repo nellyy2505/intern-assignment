@@ -11,7 +11,6 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.vectorstore.VectorStore;
 
 @Component
@@ -20,7 +19,6 @@ public class PenSalesOpenAiAgent {
     private static final String SYSTEM_PROMPT = """
     You are an SMS-style sales agent for a company that sells a single, everyday smooth-writing pen.
 
-    You MUST always respond using the JSON structured format defined in the {format} instructions.
     Never include explanations or commentary outside of JSON. Do not add extra fields.
 
     The JSON object has these fields:
@@ -162,9 +160,6 @@ public class PenSalesOpenAiAgent {
     - Use ONLY the allowed values for salesStage and leadInterest.
     """;
 
-    // Structured output converter: JSON <-> SalesAgentOutput
-    private final BeanOutputConverter<SalesAgentOutput> outputConverter =
-            new BeanOutputConverter<>(SalesAgentOutput.class);
 
     private final ChatClient chatClient;
 
@@ -194,32 +189,29 @@ public class PenSalesOpenAiAgent {
         String userText = agentRequest.userText();
 
         // 1) structured-output format instructions for JSON schema
-        String format = outputConverter.getFormat();
-        String userWithFormat = userText + "\n\n" + format;
 
         // For now, one hard-coded conversation id for console/tests
         String conversationId = "console-pen-sales";
 
         // 2) call ChatClient (memory + RAG + system prompt are applied)
-        String raw = chatClient
+        SalesAgentOutput raw = chatClient
                 .prompt()
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                .user(userWithFormat)
+                .user(userText)
                 .call()
-                .content();
+                .entity(SalesAgentOutput.class);
 
         // 3) parse JSON → SalesAgentOutput
-        if(raw == null || raw.isBlank()) {
+        if(raw == null) {
             throw new IllegalStateException("Received empty response from ChatClient");
         }
-        SalesAgentOutput structured = outputConverter.convert(raw);
 
         // 4) map to AgentReply
         return new AgentReply(
-                structured.replyText(),
+                raw.replyText(),
                 null, // no response id used
-                structured.salesStage(),
-                structured.leadInterest()
+                raw.salesStage(),
+                raw.leadInterest()
         );
     }
 }
